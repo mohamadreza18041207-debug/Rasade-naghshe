@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>پنل مدیریت نگاشت سند پیشرفت</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+<style>
+:root{
+  --ink:#182226;
+  --ink-2:#243035;
+  --paper:#F3EFE4;
+  --paper-2:#EAE3D2;
+  --paper-3:#DFD6BE;
+  --line: rgba(24,34,38,.13);
+  --line-strong: rgba(24,34,38,.24);
+  --pine:#3E6259;
+  --pine-dark:#2A463F;
+  --ochre:#B07C2C;
+  --ochre-light:#E8C077;
+  --rust:#A24A32;
+  --ink-soft: rgba(24,34,38,.62);
+  --ink-faint: rgba(24,34,38,.42);
+  --white: #FCFAF3;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 16px;
+  --shadow-1: 0 1px 2px rgba(24,34,38,.08);
+  --shadow-2: 0 8px 24px rgba(24,34,38,.14);
+  font-size: 16px;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Vazirmatn', sans-serif;
+  -webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+::selection{background:var(--ochre-light); color:var(--ink);}
+a{color:inherit;}
+button{font-family:inherit;}
+
+/* ---------- background texture: faint topographic contour lines ---------- */
+.contour-bg{
+  position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.5;
+}
+
+/* ---------- layout shell ---------- */
+.shell{
+  position:relative; z-index:1;
+  display:grid;
+  grid-template-columns: 300px 1fr;
+  min-height:100vh;
+}
+@media (max-width: 900px){
+  .shell{grid-template-columns:1fr;}
+  .sidebar{position:static; height:auto; border-inline-start:none; border-bottom:1px solid var(--line-strong);}
+}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  background:var(--ink);
+  color:var(--white);
+  padding:22px 18px 28px;
+  position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+  border-inline-start:1px solid rgba(0,0,0,.35);
+}
+.brand{
+  display:flex; align-items:center; gap:10px; margin-bottom:22px;
+}
+.brand-mark{
+  width:38px;height:38px;border-radius:9px;
+  background:linear-gradient(155deg, var(--pine) 0%, var(--pine-dark) 100%);
+  display:flex;align-items:center;justify-content:center;
+  flex:none;
+}
+.brand-mark svg{width:21px;height:21px;}
+.brand-text h1{font-size:15px;margin:0 0 2px;font-weight:700;letter-spacing:.2px; display:flex; align-items:center; flex-wrap:wrap;}
+.brand-text p{font-size:11.5px;margin:0;color:rgba(252,250,243,.5);}
+.brand-pct{font-size:11px; font-weight:800; background:linear-gradient(155deg, var(--ochre-light), var(--ochre)); color:var(--ink); padding:2px 8px; border-radius:20px; margin-inline-start:7px; vertical-align:middle;}
+
+.side-block{margin-bottom:24px;}
+.side-label{
+  font-size:11.5px; color:rgba(252,250,243,.48); margin:0 0 10px; font-weight:600;
+}
+.county-list{display:flex; flex-direction:column; gap:6px;}
+.county-chip{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:9px 12px; border-radius:var(--radius-s);
+  background:rgba(252,250,243,.05);
+  border:1px solid rgba(252,250,243,.08);
+  cursor:pointer; transition:background .15s, border-color .15s;
+  font-size:13.5px;
+}
+.county-chip:hover{background:rgba(252,250,243,.1);}
+.county-chip.active{
+  background:rgba(62,98,89,.35);
+  border-color: var(--pine);
+}
+.county-chip .name{display:flex;align-items:center;gap:8px; overflow:hidden;}
+.county-chip .pin{flex:none; width:6px;height:6px;border-radius:50%;background: var(--ochre-light); opacity:.5;}
+.county-chip.active .pin{background: var(--ochre-light); opacity:1;}
+.county-chip .del{
+  opacity:0; background:none;border:none;color:rgba(252,250,243,.5);cursor:pointer;
+  padding:2px 4px; font-size:14px; line-height:1;
+}
+.county-chip:hover .del{opacity:1;}
+.county-chip .del:hover{color:var(--rust);}
+
+.add-county-row{display:flex; gap:6px; margin-top:8px;}
+.add-county-row input{
+  flex:1; min-width:0; background:rgba(252,250,243,.07); border:1px solid rgba(252,250,243,.14);
+  color:var(--white); border-radius:var(--radius-s); padding:8px 10px; font-size:13px; font-family:inherit;
+}
+.add-county-row input::placeholder{color:rgba(252,250,243,.35);}
+.add-county-row button{
+  flex:none; background:var(--pine); color:var(--white); border:none; border-radius:var(--radius-s);
+  width:34px; cursor:pointer; font-size:16px; transition:background .15s;
+}
+.add-county-row button:hover{background:var(--pine-dark);}
+
+.mini-stat{
+  background:rgba(252,250,243,.05); border:1px solid rgba(252,250,243,.08);
+  border-radius:var(--radius-m); padding:14px;
+}
+.mini-stat .ring-row{display:flex; align-items:center; gap:12px;}
+.mini-stat svg{flex:none;}
+.mini-stat .num{font-size:22px; font-weight:800;}
+.mini-stat .lbl{font-size:11.5px; color:rgba(252,250,243,.55); margin-top:2px;}
+.mini-legend{display:flex; flex-direction:column; gap:5px; margin-top:12px;}
+.mini-legend .row{display:flex; align-items:center; gap:7px; font-size:11.5px; color:rgba(252,250,243,.68);}
+.mini-legend .dot{width:7px;height:7px;border-radius:50%;flex:none;}
+.mini-legend .row b{color:var(--white); font-weight:700; margin-inline-start:auto;}
+
+.side-nav{display:flex; flex-direction:column; gap:3px;}
+.side-nav a{
+  display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:var(--radius-s);
+  font-size:13px; color:rgba(252,250,243,.72); text-decoration:none; cursor:pointer;
+  border:1px solid transparent;
+}
+.side-nav a:hover{background:rgba(252,250,243,.06); color:var(--white);}
+.side-nav a .bar{
+  flex:none; height:5px; border-radius:3px; background:rgba(252,250,243,.14); position:relative; overflow:hidden; width:34px;
+}
+.side-nav a .bar i{position:absolute; inset-block:0; right:0; border-radius:3px; background: var(--pine);}
+.side-nav a .pct{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-size:11.5px; color:rgba(252,250,243,.5);}
+
+/* ---------- main ---------- */
+.main{padding:26px 30px 90px; min-width:0;}
+@media (max-width:640px){.main{padding:18px 14px 90px;}}
+
+.topbar{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:22px; flex-wrap:wrap;
+}
+.topbar h2{font-size:23px; margin:0 0 5px; font-weight:800; letter-spacing:-.2px;}
+.topbar .sub{font-size:13px; color:var(--ink-soft); margin:0;}
+.topbar .actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+.btn{
+  display:inline-flex; align-items:center; gap:7px; border-radius:var(--radius-s); border:1px solid var(--line-strong);
+  background:var(--white); color:var(--ink); padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;
+  transition:transform .1s, box-shadow .15s, background .15s;
+}
+.btn:hover{box-shadow:var(--shadow-1); transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
+.btn.primary{background:var(--pine); border-color:var(--pine); color:var(--white);}
+.btn.primary:hover{background:var(--pine-dark);}
+.btn.ghost{background:transparent; border-color:transparent;}
+.btn.small{padding:6px 10px; font-size:12px;}
+.btn svg{width:15px;height:15px; flex:none;}
+
+/* stats grid */
+.stats-grid{
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:22px;
+}
+@media (max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr);}}
+.stat-card{
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius-m); padding:16px 16px 14px;
+  border-inline-start:3px solid var(--pine); transition:transform .18s ease, box-shadow .18s ease;
+}
+.stat-card:hover{transform:translateY(-3px); box-shadow:var(--shadow-2);}
+.stat-card.accent-1{border-inline-start-color:var(--ochre);}
+.stat-card.accent-2{border-inline-start-color:#8C6D12;}
+.stat-card.accent-3{border-inline-start-color:var(--rust);}
+.stat-card .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.stat-card .top span{font-size:12px; color:var(--ink-soft); font-weight:600;}
+.stat-card .val{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1;}
+.stat-card .val small{font-size:13px; font-weight:600; color:var(--ink-faint); margin-inline-start:4px;}
+.progress-track{height:6px; border-radius:4px; background:var(--paper-3); overflow:hidden; margin-top:10px;}
+.progress-fill{height:100%; border-radius:4px; background:linear-gradient(90deg, var(--pine), var(--ochre-light)); transition:width .5s ease;}
+
+/* filters */
+.filters{
+  background:var(--paper-2); border:1px solid var(--line); border-radius:var(--radius-m);
+  padding:14px 14px 10px; margin-bottom:22px;
+  display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;
+}
+.field{display:flex; flex-direction:column; gap:5px; min-width:150px; flex:1;}
+.field label{font-size:11px; color:var(--ink-soft); font-weight:600;}
+.field select, .field input{
+  border:1px solid var(--line-strong); border-radius:var(--radius-s); padding:8px 10px; font-size:13px;
+  background:var(--white); color:var(--ink); font-family:inherit;
+}
+.field.search{flex:2; min-width:200px;}
+.filters .reset{margin-bottom:4px;}
+
+/* chapters */
+.chapter{
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius-l); margin-bottom:16px; overflow:hidden;
+  transition:box-shadow .18s ease;
+}
+.chapter:hover{box-shadow:var(--shadow-1);}
+.chapter-head{
+  display:flex; align-items:center; gap:14px; padding:16px 18px; cursor:pointer; user-select:none;
+  transition:background .15s ease;
+}
+.chapter-head:hover{background:rgba(24,34,38,.02);}
+.chapter-bulk{flex:none;}
+.chapter-bulk select{
+  font-size:11.5px; font-weight:600; border:1px solid var(--line-strong); border-radius:var(--radius-s);
+  padding:6px 8px; background:var(--paper); color:var(--ink-soft); font-family:inherit; cursor:pointer;
+  max-width:150px;
+}
+.chapter-bulk select:hover{border-color:var(--pine);}
+.chapter-head .chev{transition:transform .2s; flex:none; color:var(--ink-faint);}
+.chapter.collapsed .chev{transform:rotate(-90deg);}
+.chapter-head .ttl{flex:1; min-width:0;}
+.chapter-head .ttl h3{margin:0; font-size:15.5px; font-weight:700;}
+.chapter-head .ttl .cnt{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+.chapter-head .ring{flex:none;}
+.chapter-body{border-top:1px solid var(--line);}
+.chapter.collapsed .chapter-body{display:none;}
+
+.topic-group{border-bottom:1px dashed var(--line);}
+.topic-group:last-child{border-bottom:none;}
+.topic-title{
+  padding:12px 18px 4px; font-size:12.5px; font-weight:700; color:var(--pine-dark);
+  display:flex; align-items:center; gap:8px;
+}
+.topic-title .ln{flex:1; height:1px; background:var(--line);}
+
+.activity{
+  padding:12px 18px; border-top:1px solid var(--line);
+  display:grid; grid-template-columns: 1fr 230px; gap:14px; align-items:start;
+}
+.topic-group .activity:first-of-type{border-top:none;}
+@media (max-width:760px){.activity{grid-template-columns:1fr;}}
+
+.activity .detail-text{font-size:13.6px; line-height:1.75; color:var(--ink);}
+.chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
+.chip{
+  font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line-strong);
+  color:var(--ink-soft); display:inline-flex; align-items:center; gap:5px; background:var(--paper);
+}
+.chip.fixed{background:#EFE7D4; border-color:#D9C79A; color:#6B5324;}
+.chip.stage{background:#E7EEEC; border-color:#C3D6D0; color:var(--pine-dark);}
+.chip.exists{background:#E9F1E6; border-color:#C4DEC0; color:#3B6B33;}
+.chip.needed{background:#F7E9DE; border-color:#E7C6AA; color:#8C4A22;}
+.chip .dot{width:5px;height:5px;border-radius:50%;background:currentColor;}
+
+.track-box{
+  border:1px solid var(--line); border-radius:var(--radius-m); padding:10px; background:var(--paper);
+}
+.track-box .status-select{width:100%; font-size:12.5px; font-weight:700; border-radius:var(--radius-s);
+  border:1px solid var(--line-strong); padding:7px 8px; margin-bottom:7px; font-family:inherit; cursor:pointer;}
+.status-select.opt-not_started{background:#F2E9E4; color:#8C5A3E;}
+.status-select.opt-in_progress{background:#FBF0D2; color:#8C6D12;}
+.status-select.opt-done{background:#E3F0E0; color:#2E6B2A;}
+.track-box .row2{display:flex; gap:6px; margin-bottom:7px;}
+.track-box input[type=text]{
+  flex:1; min-width:0; font-size:12px; border:1px solid var(--line); border-radius:var(--radius-s);
+  padding:6px 8px; font-family:inherit; background:var(--white);
+}
+.track-box textarea{
+  width:100%; font-size:12px; border:1px solid var(--line); border-radius:var(--radius-s);
+  padding:6px 8px; font-family:inherit; resize:vertical; min-height:40px; background:var(--white);
+}
+.track-box .updated{font-size:10.5px; color:var(--ink-faint); margin-top:6px;}
+.activity-tools{display:flex; gap:4px; margin-top:8px; justify-content:flex-end;}
+.icon-btn{
+  border:none; background:none; cursor:pointer; color:var(--ink-faint); padding:3px; border-radius:5px;
+}
+.icon-btn:hover{color:var(--rust); background:rgba(0,0,0,.05);}
+
+.empty-state{
+  text-align:center; padding:60px 20px; color:var(--ink-soft);
+}
+.empty-state svg{margin-bottom:14px; opacity:.5;}
+
+/* modal */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(16,22,25,.5); display:none; align-items:center; justify-content:center;
+  z-index:50; padding:20px; backdrop-filter: blur(2px);
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--white); border-radius:var(--radius-l); padding:22px; width:100%; max-width:560px;
+  max-height:88vh; overflow-y:auto; box-shadow:var(--shadow-2);
+}
+.modal h3{margin:0 0 16px; font-size:17px; font-weight:800;}
+.modal .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.modal .field{min-width:0;}
+.modal .field label{font-size:12px; font-weight:700; color:var(--ink);}
+.modal .field select, .modal .field input, .modal .field textarea{width:100%;}
+.modal .field textarea{min-height:70px; resize:vertical; font-family:inherit; border:1px solid var(--line-strong); border-radius:var(--radius-s); padding:8px 10px; font-size:13px;}
+.modal .foot{display:flex; justify-content:flex-end; gap:8px; margin-top:18px;}
+.modal .fields-stack{display:flex; flex-direction:column; gap:10px;}
+
+.toast-wrap{position:fixed; bottom:20px; inset-inline-end:20px; z-index:60; display:flex; flex-direction:column; gap:8px; padding-bottom:env(safe-area-inset-bottom,0px);}
+.toast{
+  background:var(--ink); color:var(--white); padding:11px 16px; border-radius:var(--radius-s); font-size:13px;
+  box-shadow:var(--shadow-2); display:flex; align-items:center; gap:8px; animation:toastIn .25s ease;
+}
+.toast .dot{width:7px;height:7px;border-radius:50%; background:var(--pine); flex:none;}
+@keyframes toastIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+.fab{
+  position:fixed; bottom:24px; inset-inline-start:24px; z-index:40;
+  background:var(--pine); color:var(--white); border:none; border-radius:50px;
+  padding:14px 20px 14px 18px; display:flex; align-items:center; gap:8px; font-weight:700; font-size:13.5px;
+  cursor:pointer; box-shadow:var(--shadow-2); transition:background .15s, transform .1s;
+}
+.fab:hover{background:var(--pine-dark); transform:translateY(-2px);}
+padding-bottom:env(safe-area-inset-bottom,0px);
+
+.legend-inline{display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-soft); margin-bottom:14px;}
+.legend-inline .it{display:flex; align-items:center; gap:6px;}
+.legend-inline .sw{width:9px;height:9px;border-radius:3px;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+}
+</style>
+
+<script>
+// Minimal jalali helper for docmap gantt convert (copied from main app)
+function tdiv(a,b){const q=a/b;return q>=0?Math.floor(q):-Math.floor(-q);}
+function jmod(a,b){return a - tdiv(a,b)*b;}
+function jalCal(jy){const breaks=[-61,9,38,199,426,686,756,818,1111,1181,1210,1635,2060,2097,2192,2262,2324,2394,2456,3178];const bl=breaks.length;const gy=jy+621;let leapJ=-14;let jp=breaks[0];if(jy<jp||jy>=breaks[bl-1]) throw new Error('Invalid Jalaali year '+jy);let jump=0,jm,n;for(let i=1;i<bl;i+=1){jm=breaks[i];jump=jm-jp;if(jy<jm)break;leapJ=leapJ+tdiv(jump,33)*8+tdiv(jmod(jump,33),4);jp=jm;}n=jy-jp;leapJ=leapJ+tdiv(n,33)*8+tdiv(jmod(n,33)+3,4);if(jmod(jump,33)===4&&jump-n===4)leapJ+=1;const leapG=tdiv(gy,4)-tdiv((tdiv(gy,100)+1)*3,4)-150;const march=20+leapJ-leapG;if(jump-n<6)n=n-jump+tdiv(jump,33)*33;let leap=jmod(jmod(n+1,33)-1,4);if(leap===-1)leap=4;return{leap,gy,march};}
+function g2d(gy,gm,gd){let d=tdiv((gy+tdiv(gm-8,6)+100100)*1461,4)+tdiv(153*jmod(gm+9,12)+2,5)+gd-34840408;d=d-tdiv(tdiv(gy+100100+tdiv(gm-8,6),100)*3,4)+752;return d;}
+function d2g(jdn){let j=4*jdn+139361631;j=j+tdiv(tdiv(4*jdn+183187720,146097)*3,4)*4-3908;const i=tdiv(jmod(j,1461),4)*5+308;const gd=tdiv(jmod(i,153),5)+1;const gm=jmod(tdiv(i,153),12)+1;const gy=tdiv(j,1461)-100100+tdiv(8-gm,6);return{gy,gm,gd};}
+function j2d(jy,jm,jd){const r=jalCal(jy);return g2d(r.gy,3,r.march)+(jm-1)*31-tdiv(jm,7)*(jm-7)+jd-1;}
+function d2j(jdn){const gy0=d2g(jdn).gy;let jy=gy0-621;const r=jalCal(jy);const jdn1f=g2d(r.gy,3,r.march);let k=jdn-jdn1f;let jm,jd;if(k>=0){if(k<=185){jm=1+tdiv(k,31);jd=jmod(k,31)+1;return{jy,jm,jd};}else{k-=186;}}else{jy-=1;k+=179;if(jalCal(jy).leap===0)k+=1;}jm=7+tdiv(k,30);jd=jmod(k,30)+1;return{jy,jm,jd};}
+function toJalaali(gy,gm,gd){return d2j(g2d(gy,gm,gd));}
+function toGregorian(jy,jm,jd){return d2g(j2d(jy,jm,jd));}
+</script>
+
+</head>
+<body>
+
+<script>
+(function(){
+  const url = localStorage.getItem('sb_url');
+  const anon = localStorage.getItem('sb_anon_key');
+  if(!url || !anon){
+    // Try to get from parent if embedded
+    try{
+      const parentUrl = window.parent && window.parent.localStorage ? window.parent.localStorage.getItem('sb_url') : null;
+      const parentAnon = window.parent && window.parent.localStorage ? window.parent.localStorage.getItem('sb_anon_key') : null;
+      if(parentUrl && parentAnon){
+        localStorage.setItem('sb_url', parentUrl);
+        localStorage.setItem('sb_anon_key', parentAnon);
+        location.reload();
+      }
+    }catch(e){}
+  }
+})();
+</script>
+
+
+<script>
+// === Auth guard for docmap (shared with main app) ===
+(function(){
+  const token = localStorage.getItem('rasad_token');
+  const user = localStorage.getItem('rasad_user');
+  if(!token){
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#F3EFE4;color:#182226;font-family:Vazirmatn;text-align:center;padding:20px;"><div><div style="font-size:48px;margin-bottom:12px;">🔐</div><h2>نیاز به ورود</h2><p style="color:rgba(24,34,38,.6);">برای دسترسی به نگاشت اسناد، ابتدا در سامانه اصلی وارد شوید.</p><a href="/" style="display:inline-block;margin-top:16px;background:#3E6259;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;">رفتن به ورود →</a></div></div>';
+    throw new Error('no auth');
+  }
+})();
+</script>
+
+
+<svg class="contour-bg" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="#182226" stroke-width="1">
+    <path opacity="0.035" d="M-50,120 C 150,60 300,180 500,110 C 700,40 850,140 1050,90 C 1150,65 1250,110 1300,90"/>
+    <path opacity="0.035" d="M-50,220 C 130,170 320,270 520,200 C 720,130 860,230 1060,180 C 1160,155 1250,190 1300,175"/>
+    <path opacity="0.03" d="M-50,700 C 160,650 300,760 520,700 C 740,640 880,730 1080,680 C 1180,655 1250,690 1300,675"/>
+    <path opacity="0.03" d="M-50,800 C 160,760 320,840 540,790 C 760,740 880,820 1090,780 C 1180,762 1250,790 1300,778"/>
+    <path opacity="0.025" d="M-50,20 C 200,-30 380,60 600,10 C 820,-40 950,50 1180,0"/>
+  </g>
+</svg>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FCFAF3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z"/><path d="M9 4v14M15 6v14"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>نگاشت سند پیشرفت <span id="brandPct" class="brand-pct">۰%</span></h1>
+        <p>پنل مدیریت و کنترل پروژه</p>
+      </div>
+    </div>
+
+    <div class="side-block">
+      <p class="side-label">شهرستان‌ها</p>
+      <div class="county-list" id="countyList"></div>
+      <div class="add-county-row">
+        <input type="text" id="newCountyInput" placeholder="افزودن شهرستان جدید…">
+        <button id="addCountyBtn" title="افزودن">+</button>
+      </div>
+    </div>
+
+    <div class="side-block">
+      <p class="side-label">پیشرفت کلی شهرستان جاری</p>
+      <div class="mini-stat">
+        <div class="ring-row">
+          <svg id="sideRing" width="56" height="56" viewBox="0 0 56 56"></svg>
+          <div>
+            <div class="num" id="sidePct">0%</div>
+            <div class="lbl">از کل اقلام سند</div>
+          </div>
+        </div>
+        <div class="mini-legend" id="sideLegend"></div>
+      </div>
+    </div>
+
+    <div class="side-block">
+      <p class="side-label">پیشرفت به تفکیک فصل</p>
+      <div class="side-nav" id="chapterNav"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h2>کنترل پروژه نگاشت سند پیشرفت — <span id="activeCountyTitle"></span></h2>
+        <p class="sub">۵۹ فعالیت سند، دسته‌بندی‌شده در ۵ فصل. وضعیت هر ردیف به‌صورت مستقل برای هر شهرستان ثبت و ذخیره می‌شود.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" id="expandAllBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4h12v12M4 8v12h12"/></svg>
+          باز کردن همه فصل‌ها
+        </button>
+        <button class="btn" id="saveJsonBtn" title="ذخیره همه تغییرات در یک فایل JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+          ذخیره در JSON
+        </button>
+        <button class="btn" id="loadJsonBtn" title="بارگذاری اطلاعات از یک فایل JSON">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+          بارگذاری JSON
+        </button>
+        <input type="file" id="jsonFileInput" accept="application/json" style="display:none;">
+        <button class="btn" id="exportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 19h16"/></svg>
+          خروجی اکسل (کامل)
+        </button>
+        <button class="btn" id="exportNotDoneBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          خروجی اکسل (انجام‌نشده‌ها)
+        </button>
+        <button class="btn primary" id="addActivityBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          فعالیت جدید
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-grid" id="statsGrid"></div>
+
+    <div class="filters">
+      <div class="field search">
+        <label>جست‌وجو در کلیات / جزییات</label>
+        <input type="text" id="fSearch" placeholder="مثلاً: بلوک‌بندی، مصاحبه، دینامیک…">
+      </div>
+      <div class="field">
+        <label>فصل</label>
+        <select id="fChapter"><option value="">همه فصل‌ها</option></select>
+      </div>
+      <div class="field">
+        <label>مولف پیشنهادی</label>
+        <select id="fAuthor"><option value="">همه مولفین</option></select>
+      </div>
+      <div class="field">
+        <label>زمان ثبت (مرحله)</label>
+        <select id="fStage"><option value="">همه مراحل</option></select>
+      </div>
+      <div class="field">
+        <label>نوع گزارش</label>
+        <select id="fReport"><option value="">همه گزارش‌ها</option></select>
+      </div>
+      <div class="field">
+        <label>وضعیت پیشرفت (شهرستان جاری)</label>
+        <select id="fTrack">
+          <option value="">همه</option>
+          <option value="not_started">انجام‌نشده</option>
+          <option value="in_progress">در حال انجام</option>
+          <option value="done">انجام‌شده</option>
+        </select>
+      </div>
+      <button class="btn ghost reset" id="resetFiltersBtn">پاک کردن فیلترها</button>
+    </div>
+
+    <div class="legend-inline">
+      <span class="it"><span class="sw" style="background:#EFE7D4;border:1px solid #D9C79A;"></span> ثابت — زمان صفر</span>
+      <span class="it"><span class="sw" style="background:#E7EEEC;border:1px solid #C3D6D0;"></span> مرحله شماره‌دار</span>
+      <span class="it"><span class="sw" style="background:#F2E9E4;"></span> انجام‌نشده</span>
+      <span class="it"><span class="sw" style="background:#FBF0D2;"></span> در حال انجام</span>
+      <span class="it"><span class="sw" style="background:#E3F0E0;"></span> انجام‌شده</span>
+    </div>
+
+    <div id="chaptersWrap"></div>
+  </main>
+</div>
+
+<button class="fab" id="fabAdd">
+  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  فعالیت جدید
+</button>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">فعالیت جدید</h3>
+    <div class="fields-stack">
+      <div class="field">
+        <label>فصل</label>
+        <input list="chapterOptions" id="mChapter" placeholder="نام فصل را وارد یا انتخاب کنید">
+        <datalist id="chapterOptions"></datalist>
+      </div>
+      <div class="field">
+        <label>کلیات (عنوان موضوع)</label>
+        <input type="text" id="mTopic" placeholder="مثال: عوامل تدوین نقشه (هسته پیشرفت)">
+      </div>
+      <div class="field">
+        <label>جزییات (شرح فعالیت / ردیف)</label>
+        <textarea id="mDetail" placeholder="شرح دقیق فعالیت…"></textarea>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>مولف پیشنهادی</label>
+          <input list="authorOptions" id="mAuthor">
+          <datalist id="authorOptions"></datalist>
+        </div>
+        <div class="field">
+          <label>نوع گزارش</label>
+          <input list="reportOptions" id="mReport">
+          <datalist id="reportOptions"></datalist>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>زمان ثبت و جمع‌آوری داده</label>
+          <select id="mStageType">
+            <option value="fixed">ثابت (زمان صفر)</option>
+            <option value="staged">مرحله شماره‌دار</option>
+          </select>
+        </div>
+        <div class="field" id="mStageNumWrap">
+          <label>شماره مرحله و عنوان</label>
+          <input type="text" id="mStageLabel" placeholder="مثال: 4- پایان جمع آوری اطلاعات">
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" id="modalCancelBtn">انصراف</button>
+      <button class="btn" id="modalDeleteBtn" style="display:none; border-color:#E7C6AA; color:#8C4A22;">حذف فعالیت</button>
+      <button class="btn primary" id="modalSaveBtn">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+/* ============ SEED DATA (استخراج‌شده از اکسل اصلی؛ فقط بار اول برای مقداردهی اولیه استفاده می‌شود) ============ */
+const SEED_ACTIVITIES = [{"id": 1, "chapter": "فصل اول: روش پژوهش", "topic": "الف- تبیین اجزای نقشه پیشرفت و تشریح ارتباط بین این اجزا (ثابت)", "detail": "الف- تبیین اجزای نقشه پیشرفت و تشریح ارتباط بین این اجزا (ثابت)", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "13"}, {"id": 2, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "مبانی نگاه پیشرفت محور در مقابل توسعه گرا", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "15"}, {"id": 3, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "مبانی نگاه منطقه محوری در مقابل تمرکزگرایی", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "18"}, {"id": 4, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "الگوی برنامه ریزی غیرمتمرکز و منطقه ای", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "23"}, {"id": 5, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "مبانی نگاه مردم سالاری و کنشگری حداکثری مردم در امر پیشرفت", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "24"}, {"id": 6, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "الگوی ساخت شاخص های پیشرفت، سنجه ها و سوالات", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "25"}, {"id": 7, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "الگوی مسئله شناسی", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "40"}, {"id": 8, "chapter": "فصل اول: روش پژوهش", "topic": "ب- تبیین الگوی مورد استفاده در تدوین نقشه پیشرفت منطقه‌ای (ثابت)", "detail": "الگوی برنامه ریزی", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "51"}, {"id": 9, "chapter": "فصل اول: روش پژوهش", "topic": "روش‌های جمع آوری اطلاعات به همراه جزییات منطقه ای", "detail": "جدول جزییات فرم ها: 1- پژوهش 2- استعلام (جدول جزییات تعداد استعلام ها) 3- مصاحبه (جدول جزییات تعداد سوالات مصاحبه) 4- پرسشنامه", "author": "نقشه بان", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "موجود هست", "page": "34-37"}, {"id": 10, "chapter": "فصل اول: روش پژوهش", "topic": "روش‌های جمع آوری اطلاعات به همراه جزییات منطقه ای", "detail": "جدول منابع ارزیابی (در صورت عدم تغییر - ثابت)", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": ""}, {"id": 11, "chapter": "فصل اول: روش پژوهش", "topic": "روش‌های جمع آوری اطلاعات به همراه جزییات منطقه ای", "detail": "توضیح روش های نمونه گیری", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "0- ثابت / وجود دارد", "status": "نامشخص", "page": "37"}, {"id": 12, "chapter": "فصل اول: روش پژوهش", "topic": "روش‌های جمع آوری اطلاعات به همراه جزییات منطقه ای", "detail": "جدول جزییات نمونه گیری", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "موجود هست", "page": "39"}, {"id": 13, "chapter": "فصل اول: روش پژوهش", "topic": "معرفی محدوده جغرافیایی منطقه هدف ترسیم نقشه", "detail": "جزییات حد بندی", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "2- پایان مسئله شناسی اولیه", "stageType": "staged", "stageNum": 2, "stageLabel": "2- پایان مسئله شناسی اولیه", "report": "1- مسئله شناسی اولیه", "status": "موجود هست", "page": "61"}, {"id": 14, "chapter": "فصل اول: روش پژوهش", "topic": "معرفی محدوده جغرافیایی منطقه هدف ترسیم نقشه", "detail": "تصویر حدبندی و بلوک بندی", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "1- سفر اول راهبری", "stageType": "staged", "stageNum": 1, "stageLabel": "1- سفر اول راهبری", "report": "1- مسئله شناسی اولیه", "status": "موجود هست", "page": "61"}, {"id": 15, "chapter": "فصل اول: روش پژوهش", "topic": "معرفی محدوده جغرافیایی منطقه هدف ترسیم نقشه", "detail": "جدول  بلوک بندی", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "2- پایان مسئله شناسی اولیه", "stageType": "staged", "stageNum": 2, "stageLabel": "2- پایان مسئله شناسی اولیه", "report": "1- مسئله شناسی اولیه", "status": "موجود هست", "page": ""}, {"id": 16, "chapter": "فصل اول: روش پژوهش", "topic": "معرفی محدوده جغرافیایی منطقه هدف ترسیم نقشه", "detail": "جدول شبکه گروه های عملیات هر حد", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "3- 80% جمع آوری اطلاعات", "stageType": "staged", "stageNum": 3, "stageLabel": "3- 80% جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "اضافه بشه", "page": ""}, {"id": 17, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (هسته پیشرفت)", "detail": "توضیحی درباره هسته پیشرفت، تاریخچه آن و نام و مشخصات دقیق اعضای اصلی هسته", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "3- 80% جمع آوری اطلاعات", "stageType": "staged", "stageNum": 3, "stageLabel": "3- 80% جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "اضافه بشه", "page": "62"}, {"id": 18, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (هسته پیشرفت)", "detail": "جدول همکاران جمع آوری اطلاعات (نام نفرات همکاری کننده  در صورت وجود)", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "3- 80% جمع آوری اطلاعات", "stageType": "staged", "stageNum": 3, "stageLabel": "3- 80% جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "اضافه بشه", "page": ""}, {"id": 19, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (هسته پیشرفت)", "detail": "توضیح و ترسیم شبکه گروه ها و همکاران(به عنوان مثال این شبکه در سرخس موضوعیت پیدا کرد و گروه های مردمی و فرهنگی مختلف در محلات و حدود مختلف همکاری کردند.)", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "3- 80% جمع آوری اطلاعات", "stageType": "staged", "stageNum": 3, "stageLabel": "3- 80% جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "اضافه بشه", "page": ""}, {"id": 20, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (مداخله‌گران)", "detail": "جدول تعداد مصاحبه‌ها، پرسشنامه‌ها (مداخله گران)", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "2- جمع آوری اطلاعات", "status": "موجود هست", "page": "63"}, {"id": 21, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (مداخله‌گران)", "detail": "جدول کارشناسان شعاس و گلوگاه یابی ناظر بر هر چالش", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "64"}, {"id": 22, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (مداخله‌گران)", "detail": "جدول کارشناسان دینامیک به تفکیک گلوگاه", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "7- پایان مسئله شناسی دینامیک", "stageType": "staged", "stageNum": 7, "stageLabel": "7- پایان مسئله شناسی دینامیک", "report": "5- سند نهایی", "status": "-", "page": "65"}, {"id": 23, "chapter": "فصل اول: روش پژوهش", "topic": "عوامل تدوین نقشه (مداخله‌گران)", "detail": "جدول تقسیم کارگروه های دینامیک", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "7- پایان مسئله شناسی دینامیک", "stageType": "staged", "stageNum": 7, "stageLabel": "7- پایان مسئله شناسی دینامیک", "report": "5- سند نهایی", "status": "-", "page": "66"}, {"id": 24, "chapter": "فصل اول: روش پژوهش", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول کاملی از زمان شروع فعالیت جمع آوری اطلاعات تا پایان برنامه ریزی به تفکیک مراحل (در 4 بخش تکمیل شود)", "author": "راهبر منطقه یا هسته پیشرفت", "stageRaw": "2- پایان مسئله شناسی اولیه", "stageType": "staged", "stageNum": 2, "stageLabel": "2- پایان مسئله شناسی اولیه", "report": "1- مسئله شناسی اولیه", "status": "اضافه بشه", "page": "پنج مورد اول ص 69"}, {"id": 25, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "مقدمه (تغییرات جزیی)", "author": "شکیبایی", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "5- سند نهایی", "status": "-", "page": "ص 75 تا 83"}, {"id": 26, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "پیشینه تاریخی منطقه", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 27, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت جغرافیایی", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 28, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "پارامترهای اقلیمی موثر بر شهرستان", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 29, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "زمین شناسی (در ابعاد جغرافیایی و اقتصادی)", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 30, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "فرهنگ و مذهب", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 31, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جغرافیای سیاسی", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 32, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جاذبه‌های گردشگری", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 33, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت اقتصادی (شرح کلی)", "author": "هسته پیشرفت", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 34, "chapter": "فصل دوم: دیباچه منطقه", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت منطقه در اسناد کشوری و استانی ( اطلس رفاه ایرانیان، سند آمایش سرزمین و ...)", "author": "واحد رصد - طراح", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "5- سند نهایی", "status": "-", "page": "ص 83 تا پایان فصل"}, {"id": 35, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "مقدمه (تغییرات جزیی در متن)", "author": "شکیبایی", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "3- تحلیل اطلاعات و تولید کارنامه", "status": "موجود هست", "page": "ص 125 تا 184"}, {"id": 36, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت ابرشاخص‌ها", "author": "راهبر منطقه", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 37, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "شاخص‌های پیشرفت در یک نگاه", "author": "راهبر منطقه", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 38, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت کلی سنجه‌ها", "author": "راهبر منطقه", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 39, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "سنجه های صفر و صدی", "author": "راهبر منطقه", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 40, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "وضعیت موجود منطقه (شرح شاخص ها و سنجه ها ذیل ابرشاخص مربوطه)", "author": "راهبر منطقه", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 41, "chapter": "فصل سوم: وضعیت موجود شاخص‌های پیشرفت منطقه‌ای", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "نمودارها", "author": "نرم افزار", "stageRaw": "", "stageType": "unknown", "stageNum": null, "stageLabel": "نامشخص", "report": "نامشخص", "status": "نامشخص", "page": ""}, {"id": 42, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول شاخص های ضعیف", "author": "نرم افزار", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "187"}, {"id": 43, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول سنجه های ضعیف شاخص های ضعیف", "author": "نرم افزار", "stageRaw": "4- پایان جمع آوری اطلاعات", "stageType": "staged", "stageNum": 4, "stageLabel": "4- پایان جمع آوری اطلاعات", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "188"}, {"id": 44, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول نهایی چالش ها", "author": "نرم افزار", "stageRaw": "5- پایان تدقیق شعاس", "stageType": "staged", "stageNum": 5, "stageLabel": "5- پایان تدقیق شعاس", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": ""}, {"id": 45, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "نمونه جدول شعاس", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "194"}, {"id": 46, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "نمونه فرم ارتباط شعاس با چالش ها", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "195"}, {"id": 47, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "نمونه جدول گلوگاه یابی", "author": "ثابت", "stageRaw": "ثابت", "stageType": "fixed", "stageNum": 0, "stageLabel": "ثابت (زمان صفر)", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "196"}, {"id": 48, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "نمودار گلوگاه یابی", "author": "نرم افزار", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "196"}, {"id": 49, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول نمره همه سنجه های گلوگاهی", "author": "نرم افزار", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "ص 197 تا 201"}, {"id": 50, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول جمع بندی چالش", "author": "راهبر منطقه", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": ""}, {"id": 51, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول تلفیق گلوگاه ها", "author": "راهبر منطقه", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": "ص 201 تا 206"}, {"id": 52, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول  حوزه بندی گلوگاه ها", "author": "راهبر منطقه", "stageRaw": "6- پایان گلوگاه یابی", "stageType": "staged", "stageNum": 6, "stageLabel": "6- پایان گلوگاه یابی", "report": "4- استخراج گلوگاه ها", "status": "موجود هست", "page": ""}, {"id": 53, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "پرونده دینامیک هر گلوگاه", "author": "راهبر منطقه", "stageRaw": "7- پایان مسئله شناسی دینامیک", "stageType": "staged", "stageNum": 7, "stageLabel": "7- پایان مسئله شناسی دینامیک", "report": "5- سند نهایی", "status": "-", "page": "ص 207 تا 243"}, {"id": 54, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول نهایی مسائل (بر اساس عرصه ها)", "author": "راهبر منطقه", "stageRaw": "7- پایان مسئله شناسی دینامیک", "stageType": "staged", "stageNum": 7, "stageLabel": "7- پایان مسئله شناسی دینامیک", "report": "5- سند نهایی", "status": "-", "page": "ص 245 تا 247"}, {"id": 55, "chapter": "فصل چهارم: مسئله شناسی دینامیک", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول تعداد مسائل ذیل هر عرصه", "author": "راهبر منطقه", "stageRaw": "7- پایان مسئله شناسی دینامیک", "stageType": "staged", "stageNum": 7, "stageLabel": "7- پایان مسئله شناسی دینامیک", "report": "5- سند نهایی", "status": "نامشخص", "page": "248"}, {"id": 56, "chapter": "فصل پنجم: برنامه ریزی عملیاتی", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جدول سطح بندی مسائل (پیشرفت یا بهبود وضع موجود)", "author": "راهبر منطقه", "stageRaw": "8- پایان سند", "stageType": "staged", "stageNum": 8, "stageLabel": "8- پایان سند", "report": "5- سند نهایی", "status": "-", "page": ""}, {"id": 57, "chapter": "فصل پنجم: برنامه ریزی عملیاتی", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "گراف نقاط عطف برنامه ریزی (توضیحات)", "author": "راهبر منطقه", "stageRaw": "8- پایان سند", "stageType": "staged", "stageNum": 8, "stageLabel": "8- پایان سند", "report": "5- سند نهایی", "status": "-", "page": "ص 251 تا پایان سند"}, {"id": 58, "chapter": "فصل پنجم: برنامه ریزی عملیاتی", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "گراف نقاط عطف برنامه ریزی (رسم گراف)", "author": "واحد رصد - طراح", "stageRaw": "8- پایان سند", "stageType": "staged", "stageNum": 8, "stageLabel": "8- پایان سند", "report": "5- سند نهایی", "status": "-", "page": ""}, {"id": 59, "chapter": "فصل پنجم: برنامه ریزی عملیاتی", "topic": "مدت زمان تدوین نقشه پیشرفت", "detail": "جمع بندی الگوریتم ها", "author": "واحد رصد", "stageRaw": "8- پایان سند", "stageType": "staged", "stageNum": 8, "stageLabel": "8- پایان سند", "report": "5- سند نهایی", "status": "-", "page": ""}];
+
+/* ============ storage keys ============ */
+const LS_ACTIVITIES = 'pmap_activities_v1';
+const LS_COUNTIES   = 'pmap_counties_v1';
+const LS_PROGRESS   = 'pmap_progress_v1';
+const LS_ACTIVE     = 'pmap_active_county_v1';
+
+/* ============ state ============ */
+let activities = [];
+let counties = [];
+let progress = {};
+let activeCounty = '';
+let editingId = null;
+let collapsedChapters = new Set();
+
+const STATUS_META = {
+  not_started: {label:'انجام‌نشده', cls:'opt-not_started'},
+  in_progress: {label:'در حال انجام', cls:'opt-in_progress'},
+  done:        {label:'انجام‌شده', cls:'opt-done'}
+};
+const FA_DIGITS = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
+function toFa(val){
+  return String(val).replace(/[0-9]/g, d => FA_DIGITS[d]);
+}
+
+/* ============ persistence helpers - STATIC SUPABASE DIRECT ============ */
+function getSupabase(){
+  const url = localStorage.getItem('sb_url');
+  const anon = localStorage.getItem('sb_anon_key');
+  if(!url || !anon) throw new Error('سوپابیس تنظیم نشده');
+  return window.supabase.createClient(url, anon);
+}
+async function loadState(){
+  try{
+    const sb = getSupabase();
+    const { data, error } = await sb.from('app_data').select('data').eq('id',1).single();
+    if(!error && data && data.data){
+      const d = data.data;
+      if(Array.isArray(d.pmActivities) && d.pmActivities.length) activities = d.pmActivities;
+      else if(!localStorage.getItem(LS_ACTIVITIES)) activities = JSON.parse(JSON.stringify(SEED_ACTIVITIES));
+      else try{ activities = JSON.parse(localStorage.getItem(LS_ACTIVITIES)); }catch(e){ activities = JSON.parse(JSON.stringify(SEED_ACTIVITIES)); }
+      if(Array.isArray(d.pmCounties) && d.pmCounties.length) counties = d.pmCounties;
+      else try{ const c=localStorage.getItem(LS_COUNTIES); counties=c?JSON.parse(c):['جوین']; }catch(e){ counties=['جوین']; }
+      if(d.pmProgress && typeof d.pmProgress==='object' && Object.keys(d.pmProgress).length) progress = d.pmProgress;
+      else try{ const p=localStorage.getItem(LS_PROGRESS); progress=p?JSON.parse(p):{}; }catch(e){ progress={}; }
+      activeCounty = d.pmActiveCounty || localStorage.getItem(LS_ACTIVE) || counties[0];
+      if(!counties.includes(activeCounty)) activeCounty = counties[0];
+      ensureCountyProgress(activeCounty);
+      try{
+        localStorage.setItem(LS_ACTIVITIES, JSON.stringify(activities));
+        localStorage.setItem(LS_COUNTIES, JSON.stringify(counties));
+        localStorage.setItem(LS_PROGRESS, JSON.stringify(progress));
+        localStorage.setItem(LS_ACTIVE, activeCounty);
+      }catch(e){}
+      return;
+    }
+  }catch(e){ console.warn('supabase load fallback', e); }
+  // Fallback to localStorage
+  try{
+    const a = localStorage.getItem(LS_ACTIVITIES);
+    activities = a ? JSON.parse(a) : JSON.parse(JSON.stringify(SEED_ACTIVITIES));
+  }catch(e){ activities = JSON.parse(JSON.stringify(SEED_ACTIVITIES)); }
+  try{
+    const c = localStorage.getItem(LS_COUNTIES);
+    counties = c ? JSON.parse(c) : ['جوین'];
+  }catch(e){ counties = ['جوین']; }
+  if(!counties.length) counties = ['جوین'];
+  try{
+    const p = localStorage.getItem(LS_PROGRESS);
+    progress = p ? JSON.parse(p) : {};
+  }catch(e){ progress = {}; }
+  activeCounty = localStorage.getItem(LS_ACTIVE) || counties[0];
+  if(!counties.includes(activeCounty)) activeCounty = counties[0];
+  ensureCountyProgress(activeCounty);
+  saveAll();
+}
+function saveActivities(){ try{ localStorage.setItem(LS_ACTIVITIES, JSON.stringify(activities)); }catch(e){} }
+function saveCounties(){ try{ localStorage.setItem(LS_COUNTIES, JSON.stringify(counties)); }catch(e){} }
+function saveProgress(){ try{ localStorage.setItem(LS_PROGRESS, JSON.stringify(progress)); }catch(e){} }
+function saveActive(){ try{ localStorage.setItem(LS_ACTIVE, activeCounty); }catch(e){} }
+async function saveAll(){
+  saveActivities(); saveCounties(); saveProgress(); saveActive();
+  try{
+    const sb = getSupabase();
+    // Fetch current
+    const { data: curData } = await sb.from('app_data').select('data').eq('id',1).single();
+    let current = curData ? curData.data : {};
+    const merged = {
+      tasks: current.tasks || [],
+      notes: current.notes || [],
+      owners: current.owners || [],
+      pmActivities: activities,
+      pmCounties: counties,
+      pmProgress: progress,
+      pmMeta: current.pmMeta || null,
+      pmActiveCounty: activeCounty
+    };
+    // Sync to Gantt
+    try{
+      const ganttTasks = convertDocmapToGantt(merged);
+      const nonDoc = (merged.tasks||[]).filter(t=> !String(t.id||'').startsWith('doc_'));
+      merged.tasks = [...nonDoc, ...ganttTasks];
+    }catch(e){ console.warn('gantt convert failed', e); }
+    const { error } = await sb.from('app_data').upsert({ id:1, data: merged });
+    if(error) throw error;
+    try{ window.parent.postMessage({ type:'docmap-updated', at: Date.now() }, '*'); }catch(e){}
+    try{ localStorage.setItem('docmap_last_update', String(Date.now())); }catch(e){}
+  }catch(e){ console.warn('supabase save failed', e); }
+}
+
+function convertDocmapToGantt(merged){
+  // Convert each county's in_progress/done activities to Gantt tasks
+  const tasks = [];
+  const FA_MONTH = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  function toJalaliObj(d){
+    // Simple: use today + offset based on stageNum
+    // For demo, use today as start, 7 days later as end
+    const now = new Date();
+    const gy = now.getFullYear(), gm = now.getMonth()+1, gd = now.getDate();
+    // crude jalali conversion via same functions as main app (copy minimal)
+    // For now, just return today jalali via estimation
+    return { y: 1403, m: 7, d: 10 }; // placeholder, will be overwritten by real jalali in main app's jToDate
+  }
+  const today = new Date();
+  // Use real jalali conversion if available, else fallback
+  let todayJ = { y:1403, m:7, d:10 };
+  try{
+    if(typeof toJalaali !== 'undefined'){
+      const j = toJalaali(today.getFullYear(), today.getMonth()+1, today.getDate());
+      todayJ = { y:j.jy, m:j.jm, d:j.jd };
+    }
+  }catch(e){}
+
+  counties.forEach(county=>{
+    activities.forEach(a=>{
+      const e = (progress[county] && progress[county][a.id]) ? progress[county][a.id] : null;
+      if(!e) return;
+      if(e.status === 'not_started') return;
+      // Only staged items go to gantt, fixed are 0-time
+      // But we include all for visibility
+      const isDone = e.status === 'done';
+      const statusMap = { done: 'انجام شده', in_progress: 'در حال انجام', not_started: 'شروع نشده' };
+      // Calculate dates: start = today + stageNum * 7 days, end = start + 7 days
+      const stageOffset = (a.stageNum || 0) * 7;
+      const startDate = new Date(today); startDate.setDate(today.getDate() + stageOffset);
+      const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 7);
+      // Convert to jalali via same logic as main app (simplified)
+      let sj = todayJ, ej = todayJ;
+      try{
+        const sJ = toJalaali ? toJalaali(startDate.getFullYear(), startDate.getMonth()+1, startDate.getDate()) : null;
+        const eJ = toJalaali ? toJalaali(endDate.getFullYear(), endDate.getMonth()+1, endDate.getDate()) : null;
+        if(sJ) sj = { y:sJ.jy, m:sJ.jm, d:sJ.jd };
+        if(eJ) ej = { y:eJ.jy, m:eJ.jm, d:eJ.jd };
+      }catch(err){
+        // fallback: use todayJ
+      }
+      tasks.push({
+        id: 'doc_' + county + '_' + a.id,
+        owner: e.assignee || a.author || county,
+        main: a.chapter,
+        sub: a.detail,
+        stage: a.stageLabel || 'نگاشت',
+        priority: isDone ? 'کم' : 'متوسط',
+        sj: sj,
+        ej: ej,
+        status: statusMap[e.status] || 'در حال انجام',
+        progress: isDone ? 100 : 50,
+        desc: (e.note ? e.note + ' | ' : '') + 'شهرستان: ' + county + ' | مسئول: ' + (e.assignee||'-') + ' | از نگاشت اسناد'
+      });
+    });
+  });
+  return tasks;
+}
+
+
+function ensureCountyProgress(county){
+  if(!progress[county]) progress[county] = {};
+  activities.forEach(a=>{
+    if(!progress[county][a.id]){
+      progress[county][a.id] = {
+        status: a.stageType === 'fixed' ? 'done' : 'not_started',
+        assignee: a.stageType === 'fixed' ? '' : '',
+        note: '',
+        updatedAt: ''
+      };
+    }
+  });
+}
+function getEntry(county, id){
+  ensureCountyProgress(county);
+  return progress[county][id];
+}
+
+/* ============ toast ============ */
+function toast(msg){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = '<span class="dot"></span><span></span>';
+  el.querySelector('span:last-child').textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 2400);
+}
+
+/* ============ unique helpers ============ */
+function uniq(arr){ return Array.from(new Set(arr.filter(v=>v!==undefined && v!==null && v!==''))); }
+function orderedChapters(){
+  const seen = [];
+  activities.forEach(a=>{ if(!seen.includes(a.chapter)) seen.push(a.chapter); });
+  return seen;
+}
+
+/* ============ rendering: sidebar county list ============ */
+function renderCountyList(){
+  const wrap = document.getElementById('countyList');
+  wrap.innerHTML = '';
+  counties.forEach(c=>{
+    const div = document.createElement('div');
+    div.className = 'county-chip' + (c===activeCounty ? ' active' : '');
+    div.innerHTML = '<span class="name"><span class="pin"></span><span></span></span><button class="del" title="حذف شهرستان">✕</button>';
+    div.querySelector('.name span:last-child').textContent = c;
+    div.addEventListener('click', (e)=>{
+      if(e.target.closest('.del')) return;
+      activeCounty = c;
+      saveActive();
+      renderAll();
+    });
+    div.querySelector('.del').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      if(counties.length <= 1){ toast('حداقل یک شهرستان باید باقی بماند'); return; }
+      if(!confirm('شهرستان «'+c+'» و تمام اطلاعات پیشرفت آن حذف شود؟')) return;
+      counties = counties.filter(x=>x!==c);
+      delete progress[c];
+      if(activeCounty === c) activeCounty = counties[0];
+      saveAll();
+      renderAll();
+      toast('شهرستان حذف شد');
+    });
+    wrap.appendChild(div);
+  });
+}
+
+function addCounty(){
+  const input = document.getElementById('newCountyInput');
+  const name = input.value.trim();
+  if(!name){ return; }
+  if(counties.includes(name)){ toast('این شهرستان از قبل وجود دارد'); return; }
+  counties.push(name);
+  ensureCountyProgress(name);
+  activeCounty = name;
+  input.value = '';
+  saveAll();
+  renderAll();
+  toast('شهرستان «'+name+'» اضافه شد');
+}
+
+/* ============ stats computation ============ */
+function computeStats(county, list){
+  const total = list.length;
+  let done=0, inprog=0, notstarted=0, fixed=0, staged=0, stagedDone=0;
+  list.forEach(a=>{
+    const e = getEntry(county, a.id);
+    if(e.status==='done') done++;
+    else if(e.status==='in_progress') inprog++;
+    else notstarted++;
+    if(a.stageType==='fixed') fixed++;
+    else { staged++; if(e.status==='done') stagedDone++; }
+  });
+  return {total, done, inprog, notstarted, fixed, staged, stagedDone,
+    pctAll: total? Math.round(done/total*100):0,
+    pctStaged: staged? Math.round(stagedDone/staged*100):0 };
+}
+
+function ringSVG(pct, size, stroke, color, trackColor){
+  const r = (size-stroke)/2;
+  const c = 2*Math.PI*r;
+  const off = c - (pct/100)*c;
+  const cx = size/2, cy = size/2;
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+trackColor+'" stroke-width="'+stroke+'"/>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="'+stroke+'" stroke-linecap="round" '+
+    'stroke-dasharray="'+c+'" stroke-dashoffset="'+off+'" transform="rotate(-90 '+cx+' '+cy+')"/>'+
+    '</svg>';
+}
+
+function renderSideStats(){
+  const stats = computeStats(activeCounty, activities);
+  document.getElementById('sidePct').textContent = toFa(stats.pctAll) + '%';
+  const brandPctEl = document.getElementById('brandPct');
+  if(brandPctEl) brandPctEl.textContent = toFa(stats.pctAll) + '%';
+  document.getElementById('sideRing').outerHTML = ringSVG(stats.pctAll, 56, 6, '#E8C077', 'rgba(252,250,243,.12)').replace('<svg ', '<svg id="sideRing" ');
+  const legend = document.getElementById('sideLegend');
+  legend.innerHTML = '';
+  const rows = [
+    ['انجام‌شده', stats.done, '#7FB56F'],
+    ['در حال انجام', stats.inprog, '#E8C077'],
+    ['انجام‌نشده', stats.notstarted, '#C97B5C'],
+  ];
+  rows.forEach(r=>{
+    const d = document.createElement('div');
+    d.className='row';
+    d.innerHTML = '<span class="dot" style="background:'+r[2]+'"></span><span>'+r[0]+'</span><b>'+toFa(r[1])+'</b>';
+    legend.appendChild(d);
+  });
+}
+
+function renderChapterNav(){
+  const nav = document.getElementById('chapterNav');
+  nav.innerHTML = '';
+  orderedChapters().forEach(ch=>{
+    const list = activities.filter(a=>a.chapter===ch);
+    const stats = computeStats(activeCounty, list);
+    const a = document.createElement('a');
+    a.innerHTML = '<span class="bar"><i style="width:'+stats.pctAll+'%"></i></span><span class="chname"></span><span class="pct">'+toFa(stats.pctAll)+'%</span>';
+    a.querySelector('.chname').textContent = ch.length>16 ? ch.slice(0,16)+'…' : ch;
+    a.title = ch;
+    a.addEventListener('click', ()=>{
+      collapsedChapters.delete(ch);
+      renderChapters();
+      const target = document.querySelector('[data-chapter-anchor="'+CSS.escape(ch)+'"]');
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+    nav.appendChild(a);
+  });
+}
+
+function renderStatsGrid(){
+  const grid = document.getElementById('statsGrid');
+  const stats = computeStats(activeCounty, activities);
+  grid.innerHTML = '';
+  const cards = [
+    {label:'پیشرفت کل سند (شامل اقلام ثابت)', val: toFa(stats.pctAll)+'%', sub: toFa(stats.done)+' از '+toFa(stats.total)+' ردیف', pct: stats.pctAll},
+    {label:'پیشرفت اقلام زمان‌بر (مرحله‌دار)', val: toFa(stats.pctStaged)+'%', sub: toFa(stats.stagedDone)+' از '+toFa(stats.staged)+' ردیف', pct: stats.pctStaged},
+    {label:'در حال انجام', val: toFa(stats.inprog), sub: 'ردیف در دست اقدام', pct: stats.total? Math.round(stats.inprog/stats.total*100):0},
+    {label:'انجام‌نشده', val: toFa(stats.notstarted), sub: 'ردیف باقیمانده', pct: stats.total? Math.round(stats.notstarted/stats.total*100):0},
+  ];
+  cards.forEach((c,i)=>{
+    const div = document.createElement('div');
+    div.className='stat-card' + (i>0 ? ' accent-'+i : '');
+    div.innerHTML = '<div class="top"><span></span></div><div class="val"></div><div style="font-size:11.5px;color:var(--ink-faint); margin-top:5px;"></div><div class="progress-track"><div class="progress-fill" style="width:0%"></div></div>';
+    div.querySelector('.top span').textContent = c.label;
+    div.querySelector('.val').textContent = c.val;
+    div.querySelectorAll('div')[2].textContent = c.sub;
+    requestAnimationFrame(()=>{ div.querySelector('.progress-fill').style.width = c.pct+'%'; });
+    grid.appendChild(div);
+  });
+}
+
+/* ============ filters ============ */
+function populateFilterOptions(){
+  const chapterSel = document.getElementById('fChapter');
+  const authorSel = document.getElementById('fAuthor');
+  const stageSel = document.getElementById('fStage');
+  const reportSel = document.getElementById('fReport');
+
+  const chapters = orderedChapters();
+  const authors = uniq(activities.map(a=>a.author)).sort();
+  const stages = uniq(activities.map(a=>a.stageLabel)).sort();
+  const reports = uniq(activities.map(a=>a.report)).sort();
+
+  fillSelect(chapterSel, chapters, chapterSel.value);
+  fillSelect(authorSel, authors, authorSel.value);
+  fillSelect(stageSel, stages, stageSel.value);
+  fillSelect(reportSel, reports, reportSel.value);
+
+  fillDatalist('chapterOptions', chapters);
+  fillDatalist('authorOptions', authors);
+  fillDatalist('reportOptions', reports);
+}
+function fillSelect(sel, values, keepVal){
+  const first = sel.querySelector('option');
+  sel.innerHTML = '';
+  sel.appendChild(first);
+  values.forEach(v=>{
+    const o = document.createElement('option');
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  });
+  if(values.includes(keepVal)) sel.value = keepVal;
+}
+function fillDatalist(id, values){
+  const dl = document.getElementById(id);
+  dl.innerHTML = '';
+  values.forEach(v=>{
+    const o = document.createElement('option');
+    o.value = v;
+    dl.appendChild(o);
+  });
+}
+
+function getFilters(){
+  return {
+    search: document.getElementById('fSearch').value.trim(),
+    chapter: document.getElementById('fChapter').value,
+    author: document.getElementById('fAuthor').value,
+    stage: document.getElementById('fStage').value,
+    report: document.getElementById('fReport').value,
+    track: document.getElementById('fTrack').value,
+  };
+}
+function applyFilters(list){
+  const f = getFilters();
+  return list.filter(a=>{
+    if(f.chapter && a.chapter!==f.chapter) return false;
+    if(f.author && a.author!==f.author) return false;
+    if(f.stage && a.stageLabel!==f.stage) return false;
+    if(f.report && a.report!==f.report) return false;
+    if(f.track){
+      const e = getEntry(activeCounty, a.id);
+      if(e.status !== f.track) return false;
+    }
+    if(f.search){
+      const hay = (a.topic+' '+a.detail+' '+a.author).toLowerCase();
+      if(!hay.includes(f.search.toLowerCase())) return false;
+    }
+    return true;
+  });
+}
+
+/* ============ chapters + activities render ============ */
+function renderChapters(){
+  const wrap = document.getElementById('chaptersWrap');
+  wrap.innerHTML = '';
+  const filtered = applyFilters(activities);
+
+  if(filtered.length === 0){
+    wrap.innerHTML = '<div class="empty-state"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><div>هیچ فعالیتی با این فیلترها یافت نشد.</div></div>';
+    return;
+  }
+
+  const chapters = orderedChapters();
+  chapters.forEach(ch=>{
+    const chapterItems = filtered.filter(a=>a.chapter===ch);
+    if(chapterItems.length===0) return;
+    const allInChapter = activities.filter(a=>a.chapter===ch);
+    const stats = computeStats(activeCounty, allInChapter);
+
+    const chapDiv = document.createElement('div');
+    chapDiv.className = 'chapter' + (collapsedChapters.has(ch) ? ' collapsed' : '');
+    chapDiv.setAttribute('data-chapter-anchor', ch);
+
+    const head = document.createElement('div');
+    head.className = 'chapter-head';
+    head.innerHTML = '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'+
+      '<div class="ttl"><h3></h3><div class="cnt"></div></div>'+
+      '<div class="chapter-bulk"><select title="اعمال یکجا برای کل فصل"><option value="">علامت‌گذاری کل فصل…</option><option value="done">همه: انجام‌شده</option><option value="in_progress">همه: در حال انجام</option><option value="not_started">همه: انجام‌نشده</option></select></div>'+
+      '<div class="ring"></div>';
+    head.querySelector('h3').textContent = ch;
+    head.querySelector('.cnt').textContent = toFa(allInChapter.length) + ' فعالیت · ' + toFa(stats.done) + ' انجام‌شده · ' + toFa(stats.pctAll) + '٪ پیشرفت';
+    head.querySelector('.ring').innerHTML = ringSVG(stats.pctAll, 40, 5, '#3E6259', 'rgba(24,34,38,.1)');
+    const bulkSelect = head.querySelector('.chapter-bulk select');
+    bulkSelect.addEventListener('click', e=>e.stopPropagation());
+    bulkSelect.addEventListener('change', ()=>{
+      const val = bulkSelect.value;
+      if(!val){ return; }
+      if(!confirm('وضعیت همه '+toFa(allInChapter.length)+' فعالیت این فصل به «'+STATUS_META[val].label+'» تغییر کند؟')){
+        bulkSelect.value = '';
+        return;
+      }
+      allInChapter.forEach(a=>{
+        const e = getEntry(activeCounty, a.id);
+        e.status = val;
+        e.updatedAt = nowStr();
+      });
+      saveAll().then(()=>renderAll());
+      toast('وضعیت کل فصل «'+ch+'» بروزرسانی شد');
+    });
+    head.addEventListener('click', (e)=>{
+      if(e.target.closest('.chapter-bulk')) return;
+      if(collapsedChapters.has(ch)) collapsedChapters.delete(ch); else collapsedChapters.add(ch);
+      chapDiv.classList.toggle('collapsed');
+    });
+    chapDiv.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'chapter-body';
+
+    const topics = [];
+    chapterItems.forEach(a=>{ if(!topics.includes(a.topic)) topics.push(a.topic); });
+
+    topics.forEach(tp=>{
+      const items = chapterItems.filter(a=>a.topic===tp);
+      const tGroup = document.createElement('div');
+      tGroup.className = 'topic-group';
+      if(tp){
+        const tTitle = document.createElement('div');
+        tTitle.className = 'topic-title';
+        tTitle.innerHTML = '<span></span><span class="ln"></span>';
+        tTitle.querySelector('span').textContent = tp;
+        tGroup.appendChild(tTitle);
+      }
+      items.forEach(a=>{
+        tGroup.appendChild(renderActivityRow(a));
+      });
+      body.appendChild(tGroup);
+    });
+
+    chapDiv.appendChild(body);
+    wrap.appendChild(chapDiv);
+  });
+}
+
+function renderActivityRow(a){
+  const entry = getEntry(activeCounty, a.id);
+  const row = document.createElement('div');
+  row.className = 'activity';
+
+  const left = document.createElement('div');
+  const chipsHtml = [];
+  if(a.stageType==='fixed'){
+    chipsHtml.push('<span class="chip fixed"><span class="dot"></span>ثابت · زمان صفر</span>');
+  } else {
+    chipsHtml.push('<span class="chip stage"><span class="dot"></span>'+escapeHtml(a.stageLabel)+'</span>');
+  }
+  chipsHtml.push('<span class="chip">مولف: '+escapeHtml(a.author)+'</span>');
+  chipsHtml.push('<span class="chip">گزارش: '+escapeHtml(a.report)+'</span>');
+  left.innerHTML = '<div class="detail-text"></div><div class="chips">'+chipsHtml.join('')+'</div>'+
+    '<div class="activity-tools"><button class="icon-btn edit-btn" title="ویرایش"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button></div>';
+  left.querySelector('.detail-text').textContent = a.detail;
+  left.querySelector('.edit-btn').addEventListener('click', ()=>openModal(a));
+
+  const right = document.createElement('div');
+  right.className = 'track-box';
+  const sel = document.createElement('select');
+  sel.className = 'status-select opt-'+entry.status;
+  Object.keys(STATUS_META).forEach(k=>{
+    const o = document.createElement('option');
+    o.value = k; o.textContent = STATUS_META[k].label;
+    if(k===entry.status) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', ()=>{
+    entry.status = sel.value;
+    entry.updatedAt = nowStr();
+    sel.className = 'status-select opt-'+entry.status;
+    await saveAll();
+    renderStatsGrid(); renderSideStats(); renderChapterNav();
+    updatedLabel.textContent = 'آخرین بروزرسانی: ' + toFa(entry.updatedAt);
+    toast('وضعیت بروزرسانی شد');
+  });
+  right.appendChild(sel);
+
+  const row2 = document.createElement('div');
+  row2.className = 'row2';
+  const assigneeInput = document.createElement('input');
+  assigneeInput.type = 'text';
+  assigneeInput.placeholder = 'مسئول انجام (اختیاری)';
+  assigneeInput.value = entry.assignee || '';
+  assigneeInput.addEventListener('change', ()=>{
+    entry.assignee = assigneeInput.value;
+    entry.updatedAt = nowStr();
+    saveProgress();
+    updatedLabel.textContent = 'آخرین بروزرسانی: ' + toFa(entry.updatedAt);
+  });
+  row2.appendChild(assigneeInput);
+  right.appendChild(row2);
+
+  const noteArea = document.createElement('textarea');
+  noteArea.placeholder = 'یادداشت / توضیح پیشرفت…';
+  noteArea.value = entry.note || '';
+  noteArea.addEventListener('change', ()=>{
+    entry.note = noteArea.value;
+    entry.updatedAt = nowStr();
+    saveProgress();
+    updatedLabel.textContent = 'آخرین بروزرسانی: ' + toFa(entry.updatedAt);
+  });
+  right.appendChild(noteArea);
+
+  const updatedLabel = document.createElement('div');
+  updatedLabel.className = 'updated';
+  updatedLabel.textContent = entry.updatedAt ? ('آخرین بروزرسانی: ' + toFa(entry.updatedAt)) : 'هنوز بروزرسانی نشده';
+  right.appendChild(updatedLabel);
+
+  row.appendChild(left);
+  row.appendChild(right);
+  return row;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function nowStr(){
+  const d = new Date();
+  const p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'/'+p(d.getMonth()+1)+'/'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+/* ============ modal (add/edit activity) ============ */
+function openModal(activity){
+  editingId = activity ? activity.id : null;
+  document.getElementById('modalTitle').textContent = activity ? 'ویرایش فعالیت' : 'فعالیت جدید';
+  document.getElementById('mChapter').value = activity ? activity.chapter : (document.getElementById('fChapter').value || '');
+  document.getElementById('mTopic').value = activity ? activity.topic : '';
+  document.getElementById('mDetail').value = activity ? activity.detail : '';
+  document.getElementById('mAuthor').value = activity ? activity.author : '';
+  document.getElementById('mReport').value = activity ? activity.report : '';
+  document.getElementById('mStageType').value = activity ? activity.stageType : 'staged';
+  document.getElementById('mStageLabel').value = activity ? (activity.stageType==='fixed' ? '' : activity.stageLabel) : '';
+  document.getElementById('modalDeleteBtn').style.display = activity ? 'inline-flex' : 'none';
+  toggleStageNumWrap();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  editingId = null;
+}
+function toggleStageNumWrap(){
+  const isFixed = document.getElementById('mStageType').value === 'fixed';
+  document.getElementById('mStageNumWrap').style.display = isFixed ? 'none' : 'flex';
+}
+function saveModal(){
+  const chapter = document.getElementById('mChapter').value.trim();
+  const topic = document.getElementById('mTopic').value.trim();
+  const detail = document.getElementById('mDetail').value.trim();
+  const author = document.getElementById('mAuthor').value.trim() || 'نامشخص';
+  const report = document.getElementById('mReport').value.trim() || 'نامشخص';
+  const stageType = document.getElementById('mStageType').value;
+  const stageLabelRaw = document.getElementById('mStageLabel').value.trim();
+
+  if(!chapter || !detail){
+    toast('فصل و جزییات فعالیت الزامی است');
+    return;
+  }
+
+  let stageNum = null, stageLabel = '', stageRaw = '';
+  if(stageType === 'fixed'){
+    stageLabel = 'ثابت (زمان صفر)';
+    stageRaw = 'ثابت';
+    stageNum = 0;
+  } else {
+    const m = stageLabelRaw.match(/^(\d+)/);
+    stageNum = m ? parseInt(m[1],10) : null;
+    stageLabel = stageLabelRaw || 'نامشخص';
+    stageRaw = stageLabelRaw;
+  }
+
+  if(editingId){
+    const a = activities.find(x=>x.id===editingId);
+    Object.assign(a, {chapter, topic, detail, author, report, stageType, stageNum, stageLabel, stageRaw});
+    toast('فعالیت ویرایش شد');
+  } else {
+    const newId = activities.length ? Math.max(...activities.map(x=>x.id))+1 : 1;
+    const a = {id:newId, chapter, topic, detail, author, report, stageType, stageNum, stageLabel, stageRaw, status:'', page:''};
+    activities.push(a);
+    counties.forEach(c=>{
+      ensureCountyProgress(c);
+    });
+    toast('فعالیت جدید افزوده شد');
+  }
+  saveActivities();
+  saveProgress();
+  closeModal();
+  renderAll();
+}
+function deleteActivity(){
+  if(!editingId) return;
+  if(!confirm('این فعالیت برای همه شهرستان‌ها حذف شود؟')) return;
+  activities = activities.filter(a=>a.id!==editingId);
+  Object.keys(progress).forEach(c=>{ delete progress[c][editingId]; });
+  saveActivities();
+  saveProgress();
+  closeModal();
+  renderAll();
+  toast('فعالیت حذف شد');
+}
+
+/* ============ export ============ */
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){
+    toast('کتابخانه خروجی اکسل بارگذاری نشد (نیاز به اتصال اینترنت)');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  counties.forEach(county=>{
+    const rows = [[
+      'ردیف','فصل','کلیات','جزییات','مولف پیشنهادی','زمان ثبت و جمع‌آوری داده',
+      'نوع گزارش','وضعیت پیشرفت','مسئول انجام','یادداشت','آخرین بروزرسانی'
+    ]];
+    activities.forEach((a,i)=>{
+      const e = getEntry(county, a.id);
+      rows.push([
+        i+1, a.chapter, a.topic, a.detail, a.author, a.stageLabel, a.report,
+        STATUS_META[e.status].label, e.assignee||'', e.note||'', e.updatedAt||''
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:22},{wch:26},{wch:34},{wch:16},{wch:22},{wch:22},{wch:14},{wch:16},{wch:26},{wch:16}];
+    ws['!rtl'] = true;
+    XLSX.utils.book_append_sheet(wb, ws, sheetSafe(county));
+  });
+
+  const summaryRows = [['شهرستان','کل ردیف‌ها','انجام‌شده','در حال انجام','انجام‌نشده','پیشرفت کل (٪)','پیشرفت اقلام زمان‌بر (٪)']];
+  counties.forEach(county=>{
+    const s = computeStats(county, activities);
+    summaryRows.push([county, s.total, s.done, s.inprog, s.notstarted, s.pctAll, s.pctStaged]);
+  });
+  const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+  wsSum['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:14},{wch:12},{wch:16},{wch:20}];
+  wsSum['!rtl'] = true;
+  XLSX.utils.book_append_sheet(wb, wsSum, 'خلاصه وضعیت');
+
+  XLSX.writeFile(wb, 'گزارش-نگاشت-پیشرفت-' + nowStr().replace(/[\/: ]/g,'-') + '.xlsx');
+  toast('فایل اکسل دانلود شد');
+}
+
+function exportExcelNotDoneOnly(){
+  if(typeof XLSX === 'undefined'){
+    toast('کتابخانه خروجی اکسل بارگذاری نشد (نیاز به اتصال اینترنت)');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  let anySheet = false;
+
+  counties.forEach(county=>{
+    const rows = [[
+      'ردیف','فصل','کلیات','جزییات','مولف پیشنهادی','زمان ثبت و جمع‌آوری داده',
+      'نوع گزارش','وضعیت پیشرفت','مسئول انجام','یادداشت','آخرین بروزرسانی'
+    ]];
+    let idx = 0;
+    activities.forEach(a=>{
+      const e = getEntry(county, a.id);
+      if(e.status === 'done') return;
+      idx++;
+      rows.push([
+        idx, a.chapter, a.topic, a.detail, a.author, a.stageLabel, a.report,
+        STATUS_META[e.status].label, e.assignee||'', e.note||'', e.updatedAt||''
+      ]);
+    });
+    if(idx === 0) return;
+    anySheet = true;
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:22},{wch:26},{wch:34},{wch:16},{wch:22},{wch:22},{wch:14},{wch:16},{wch:26},{wch:16}];
+    ws['!rtl'] = true;
+    XLSX.utils.book_append_sheet(wb, ws, sheetSafe(county));
+  });
+
+  if(!anySheet){
+    toast('همه فعالیت‌ها در همه شهرستان‌ها انجام‌شده است');
+    return;
+  }
+
+  XLSX.writeFile(wb, 'فعالیت‌های-انجام‌نشده-' + nowStr().replace(/[\/: ]/g,'-') + '.xlsx');
+  toast('فایل اکسل فعالیت‌های انجام‌نشده دانلود شد');
+}
+
+function sheetSafe(name){
+  return name.replace(/[\\/*?:\[\]]/g,'').slice(0,31) || 'Sheet';
+}
+
+/* ============ JSON save / load ============ */
+function exportJSON(){
+  const data = {
+    version: 1,
+    exportedAt: nowStr(),
+    activities, counties, progress, activeCounty
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'نگاشت-پیشرفت-' + nowStr().replace(/[\/: ]/g,'-') + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('فایل JSON دانلود شد');
+}
+
+function importJSONFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!Array.isArray(data.activities) || !Array.isArray(data.counties) || typeof data.progress !== 'object'){
+        throw new Error('ساختار فایل نامعتبر است');
+      }
+      activities = data.activities;
+      counties = data.counties.length ? data.counties : ['جوین'];
+      progress = data.progress || {};
+      activeCounty = (data.activeCounty && counties.includes(data.activeCounty)) ? data.activeCounty : counties[0];
+      counties.forEach(c=>ensureCountyProgress(c));
+      saveAll();
+      renderAll();
+      toast('اطلاعات از فایل JSON با موفقیت بارگذاری شد');
+    }catch(err){
+      toast('خطا در خواندن فایل JSON — فایل معتبر نیست');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+/* ============ master render ============ */
+function renderAll(){
+  document.getElementById('activeCountyTitle').textContent = activeCounty;
+  renderCountyList();
+  renderSideStats();
+  renderChapterNav();
+  renderStatsGrid();
+  populateFilterOptions();
+  renderChapters();
+}
+
+/* ============ events ============ */
+document.getElementById('addCountyBtn').addEventListener('click', addCounty);
+document.getElementById('newCountyInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addCounty(); });
+
+['fSearch','fChapter','fAuthor','fStage','fReport','fTrack'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderChapters);
+  document.getElementById(id).addEventListener('change', renderChapters);
+});
+document.getElementById('resetFiltersBtn').addEventListener('click', ()=>{
+  ['fSearch','fChapter','fAuthor','fStage','fReport','fTrack'].forEach(id=>{ document.getElementById(id).value=''; });
+  renderChapters();
+});
+
+document.getElementById('expandAllBtn').addEventListener('click', ()=>{
+  const anyCollapsed = collapsedChapters.size > 0;
+  if(anyCollapsed){ collapsedChapters.clear(); }
+  else { orderedChapters().forEach(c=>collapsedChapters.add(c)); }
+  document.getElementById('expandAllBtn').lastChild.textContent = anyCollapsed ? ' بستن همه فصل‌ها' : ' باز کردن همه فصل‌ها';
+  renderChapters();
+});
+
+document.getElementById('exportBtn').addEventListener('click', exportExcel);
+document.getElementById('exportNotDoneBtn').addEventListener('click', exportExcelNotDoneOnly);
+document.getElementById('saveJsonBtn').addEventListener('click', exportJSON);
+document.getElementById('loadJsonBtn').addEventListener('click', ()=>document.getElementById('jsonFileInput').click());
+document.getElementById('jsonFileInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(file) importJSONFile(file);
+  e.target.value = '';
+});
+document.getElementById('addActivityBtn').addEventListener('click', ()=>openModal(null));
+document.getElementById('fabAdd').addEventListener('click', ()=>openModal(null));
+document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+document.getElementById('modalSaveBtn').addEventListener('click', saveModal);
+document.getElementById('modalDeleteBtn').addEventListener('click', deleteActivity);
+document.getElementById('mStageType').addEventListener('change', toggleStageNumWrap);
+document.getElementById('modalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='modalOverlay') closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ============ init ============ */
+(async function(){
+  await loadState();
+  orderedChapters().forEach(c=>collapsedChapters.add(c));
+  renderAll();
+  // Listen for parent sync
+  window.addEventListener('storage', (e)=>{
+    if(e.key==='docmap_last_update' || e.key==='rasad_pm_progress_v1'){
+      loadState().then(renderAll);
+    }
+  });
+  window.addEventListener('message', (e)=>{
+    if(e.data && e.data.type==='refresh-docmap'){
+      loadState().then(renderAll);
+    }
+  });
+})();
+</script>
+</body>
+</html>
